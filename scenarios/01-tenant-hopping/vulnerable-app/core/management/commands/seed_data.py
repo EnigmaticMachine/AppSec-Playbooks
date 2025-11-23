@@ -12,10 +12,21 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write("Cleaning old data...")
+        # Delete in the correct order to avoid foreign key constraints
         Patient.objects.all().delete()
         User.objects.all().delete()
         Tenant.objects.all().delete()
         Group.objects.all().delete()
+
+        # Reset auto-increment counters for a clean state
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            # SQLite specific - reset the sequence
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='core_tenant'")
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='core_user'")
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='core_patient'")
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='auth_group'")
 
         self.stdout.write("Creating Tenants...")
         clinic_a = Tenant.objects.create(name="Downtown Clinic (Victim)")  # ID 1
@@ -25,16 +36,16 @@ class Command(BaseCommand):
         # 1. Superuser
         User.objects.create_superuser("admin", "admin@medivault.com", "admin")
 
-        # 2. Dr. Alice (The Victim) - ID 1
-        alice = User.objects.create_user("alice", "alice@downtown.com", "password123")
+        # 2. Dr. Alice (The Victim) - ID 2
+        alice = User.objects.create_user("alice", "alice@downtown.com", "123")
         alice.first_name = "Alice"
         alice.last_name = "Wonder"
         alice.tenant = clinic_a
         alice.is_staff = True  # Needs admin access
         alice.save()
 
-        # 3. Dr. Bob (The Attacker) - ID 2
-        bob = User.objects.create_user("bob", "bob@uptown.com", "password123")
+        # 3. Dr. Bob (The Attacker) - ID 3
+        bob = User.objects.create_user("bob", "bob@uptown.com", "123")
         bob.first_name = "Bob"
         bob.last_name = "Builder"
         bob.tenant = clinic_b
