@@ -1,6 +1,8 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from core.models import Tenant, Patient
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
+from core.models import Tenant, Patient, Profile
 
 User = get_user_model()
 
@@ -13,6 +15,7 @@ class Command(BaseCommand):
         Patient.objects.all().delete()
         User.objects.all().delete()
         Tenant.objects.all().delete()
+        Group.objects.all().delete()
 
         self.stdout.write("Creating Tenants...")
         clinic_a = Tenant.objects.create(name="Downtown Clinic (Victim)")  # ID 1
@@ -37,6 +40,44 @@ class Command(BaseCommand):
         bob.tenant = clinic_b
         bob.is_staff = True  # Needs admin access
         bob.save()
+
+        self.stdout.write("Creating Doctors group...")
+        # Create the Doctors group
+        doctors_group = Group.objects.create(name="Doctors")
+
+        # Get content types for Profile and Patient models
+        # For proxy models, we need for_concrete_model=False to get a separate ContentType
+        profile_content_type = ContentType.objects.get_for_model(
+            Profile, for_concrete_model=False
+        )
+        patient_content_type = ContentType.objects.get_for_model(Patient)
+
+        # Create permissions for Profile if they don't exist
+        # Django doesn't auto-create permissions for proxy models, so we do it manually
+        view_profile_perm, _ = Permission.objects.get_or_create(
+            codename="view_profile",
+            content_type=profile_content_type,
+            defaults={"name": "Can view My Profile"},
+        )
+        change_profile_perm, _ = Permission.objects.get_or_create(
+            codename="change_profile",
+            content_type=profile_content_type,
+            defaults={"name": "Can change My Profile"},
+        )
+
+        # Get the view_patient permission
+        view_patient_perm = Permission.objects.get(
+            codename="view_patient", content_type=patient_content_type
+        )
+
+        # Add permissions to the Doctors group
+        doctors_group.permissions.add(
+            view_profile_perm, change_profile_perm, view_patient_perm
+        )
+
+        # Add Alice and Bob to the Doctors group
+        alice.groups.add(doctors_group)
+        bob.groups.add(doctors_group)
 
         self.stdout.write("Creating Patients...")
         # Alice's Patients (The Secret Data)

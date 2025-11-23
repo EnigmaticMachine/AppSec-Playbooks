@@ -18,6 +18,22 @@ class User(AbstractUser):
     )
 
 
+class Profile(User):
+    """
+    Proxy Model for User.
+    This is the "Security by Obscurity" trick.
+    We rename 'Users' to 'My Profile' in the admin UI to make it look harmless.
+    But under the hood, it's still the User model with the vulnerable tenant field.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "My Profile"
+        verbose_name_plural = "My Profile"
+        # Ensure Django creates permissions for this proxy model
+        default_permissions = ("add", "change", "delete", "view")
+
+
 class Patient(models.Model):
     tenant = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, related_name="patients"
